@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NZ Marlin & Tuna Fishing Predictor</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+        }
+
+        .header {
+            background: rgba(30, 60, 114, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            position: relative;
+            z-index: 1000;
+        }
+
+        .header h1 {
+            color: white;
+            text-align: center;
+            font-size: 2rem;
+            font-weight: 700;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .header p {
+            color: #b8d4f0;
+            text-align: center;
+            margin-top: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        .container {
+            display: flex;
+            height: calc(100vh - 120px);
+            position: relative;
+        }
+
+        .sidebar {
+            width: 350px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1.5rem;
+            overflow-y: auto;
+            box-shadow: 4px 0 20px rgba(0,0,0,0.15);
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+
+        .toggle-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 2000;
+            background: rgba(30, 60, 114, 0.9);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+        }
+
+        .toggle-btn:hover {
+            background: rgba(42, 82, 152, 0.9);
+            transform: scale(1.1);
+        }
+
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            border-left: 4px solid #2a5298;
+        }
+
+        .section h3 {
+            color: #1e3c72;
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .prediction-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            text-align: center;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+        }
+
+        .prediction-score {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin: 0.5rem 0;
+        }
+
+        .conditions-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .condition-item {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+            border: 2px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+
+        .condition-item:hover {
+            border-color: #2a5298;
+            transform: translateY(-2px);
+        }
+
+        .condition-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #2a5298;
+            margin-bottom: 0.25rem;
+        }
+
+        .condition-label {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+
+        .layer-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .layer-btn {
+            background: linear-gradient(135deg, #2a5298 0%, #1e3c72 100%);
+            color: white;
+            border: none;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .layer-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(42, 82, 152, 0.4);
+        }
+
+        .layer-btn.active {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        }
+
+        #map {
+            flex: 1;
+            border-radius: 0 12px 12px 0;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+
+        .alert {
+            background: linear-gradient(135deg, #ffeaa7 0%, #fab1a0 100%);
+            color: #2d3436;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            border-left: 4px solid #e17055;
+        }
+
+        .alert-icon {
+            margin-right: 0.5rem;
+        }
+
+        .catch-form {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #495057;
+        }
+
+        .form-group input,
+        .form-group select {
+            padding: 0.75rem;
+            border: 2px solid #e9ecef;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #2a5298;
+        }
+
+        .submit-btn {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            border: none;
+            padding: 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);
+        }
+
+        .catch-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .catch-item {
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            border-left: 3px solid #2a5298;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+
+        .status-excellent { background: #dc3545; }
+        .status-good { background: #ffc107; }
+        .status-fair { background: #28a745; }
+        .status-poor { background: #6c757d; }
+
+        .weather-forecast {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .weather-day {
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 0.75rem 0.5rem;
+            text-align: center;
+            font-size: 0.85rem;
+        }
+
+        .refresh-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(40, 167, 69, 0.9);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            z-index: 1000;
+            display: none;
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e3e3e3;
+            border-top: 4px solid #2a5298;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .legend {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 1rem;
+            border-radius: 8px;
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            min-width: 200px;
+        }
+
+        .legend h4 {
+            margin-bottom: 0.75rem;
+            color: #1e3c72;
+            font-size: 1rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: auto;
+                order: 2;
+            }
+            
+            #map {
+                height: 50vh;
+                order: 1;
+                border-radius: 0;
+            }
+            
+            .header h1 {
+                font-size: 1.5rem;
+            }
+            
+            .conditions-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1><i class="fas fa-fish"></i> NZ Marlin & Tuna Fishing Predictor</h1>
+        <p>Real-time data • Intelligent predictions • New Zealand waters</p>
+    </div>
+
+    <div class="refresh-indicator" id="refreshIndicator">
+        <i class="fas fa-sync-alt"></i> Updating data...
+    </div>
+
+    <div class="container">
+        <button class="toggle-btn" id="toggleSidebar">
+            <i class="fas fa-bars"></i>
+        </button>
+
+        <div class="sidebar" id="sidebar">
+            <div class="section">
+                <h3><i class="fas fa-bullseye"></i> Fishing Predictions</h3>
+                <div class="prediction-card" id="marlinPrediction">
+                    <h4>Marlin</h4>
+                    <div class="prediction-score" id="marlinScore">--</div>
+                    <p>Probability</p>
+                </div>
+                <div class="prediction-card" id="tunaPrediction">
+                    <h4>Tuna</h4>
+                    <div class="prediction-score" id="tunaScore">--</div>
+                    <p>Probability</p>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3><i class="fas fa-thermometer-half"></i> Current Conditions</h3>
+                <div class="conditions-grid" id="conditionsGrid">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3><i class="fas fa-layer-group"></i> Map Layers</h3>
+                <div class="layer-controls">
+                    <button class="layer-btn active" data-layer="temperature">
+                        <i class="fas fa-temperature-high"></i> Sea Surface Temperature
+                    </button>
+                    <button class="layer-btn" data-layer="currents">
+                        <i class="fas fa-water"></i> Ocean Currents
+                    </button>
+                    <button class="layer-btn" data-layer="chlorophyll">
+                        <i class="fas fa-leaf"></i> Chlorophyll-a
+                    </button>
+                    <button class="layer-btn" data-layer="hotspots">
+                        <i class="fas fa-fire"></i> Fishing Hotspots
+                    </button>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3><i class="fas fa-cloud-sun"></i> Weather Forecast</h3>
+                <div class="weather-forecast" id="weatherForecast">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3><i class="fas fa-bell"></i> Fishing Alerts</h3>
+                <div id="alertsContainer">
+                    <div class="alert">
+                        <i class="fas fa-info-circle alert-icon"></i>
+                        System initializing... Please wait for data to load.
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3><i class="fas fa-book"></i> Log Your Catch</h3>
+                <form class="catch-form" id="catchForm">
+                    <div class="form-group">
+                        <label for="species">Species</label>
+                        <select id="species" required>
+                            <option value="">Select species</option>
+                            <option value="Blue Marlin">Blue Marlin</option>
+                            <option value="Black Marlin">Black Marlin</option>
+                            <option value="Striped Marlin">Striped Marlin</option>
+                            <option value="Yellowfin Tuna">Yellowfin Tuna</option>
+                            <option value="Bluefin Tuna">Bluefin Tuna</option>
+                            <option value="Albacore Tuna">Albacore Tuna</option>
+                            <option value="Bigeye Tuna">Bigeye Tuna</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="weight">Weight (kg)</label>
+                        <input type="number" id="weight" min="0" step="0.1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="gear">Gear Used</label>
+                        <select id="gear" required>
+                            <option value="">Select gear</option>
+                            <option value="Trolling">Trolling</option>
+                            <option value="Live Bait">Live Bait</option>
+                            <option value="Jigging">Jigging</option>
+                            <option value="Fly Fishing">Fly Fishing</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="submit-btn">
+                        <i class="fas fa-plus"></i> Log Catch
+                    </button>
+                </form>
+                <div class="catch-list" id="catchList"></div>
+            </div>
+        </div>
+
+        <div id="map"></div>
+    </div>
+
+    <div class="legend" id="mapLegend">
+        <h4>Temperature Scale (°C)</h4>
+        <div class="legend-item">
+            <div class="status-indicator status-poor"></div> 12-16°C - Cold
+        </div>
+        <div class="legend-item">
+            <div class="status-indicator status-fair"></div> 16-20°C - Cool
+        </div>
+        <div class="legend-item">
+            <div class="status-indicator status-good"></div> 20-24°C - Optimal
+        </div>
+        <div class="legend-item">
+            <div class="status-indicator status-excellent"></div> 24-28°C - Excellent
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        class FishingApp {
+            constructor() {
+                this.map = null;
+                this.currentLayer = 'temperature';
+                this.layers = {};
+                this.markers = [];
+                this.catches = [];
+                this.weatherData = null;
+                this.environmentalData = {};
+                
+                this.initializeApp();
+                this.setupEventListeners();
+                this.startDataRefresh();
+            }
+
+            initializeApp() {
+                this.initializeMap();
+                this.loadInitialData();
+            }
+
+            initializeMap() {
+                // Initialize map centered on NZ fishing waters
+                this.map = L.map('map').setView([-35.5, 174.0], 7);
+
+                // Add base layer
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(this.map);
+
+                // Add key fishing locations
+                this.addFishingLocations();
+                
+                // Initialize layer controls
+                this.initializeLayers();
+            }
+
+            addFishingLocations() {
+                const locations = [
+                    { name: 'Bay of Islands', lat: -35.25, lng: 174.12, depth: '20-200m' },
+                    { name: 'North Cape', lat: -34.42, lng: 173.05, depth: '100-1000m' },
+                    { name: 'King Bank', lat: -34.0, lng: 172.0, depth: '40-80m' },
+                    { name: 'Middlesex Bank', lat: -34.5, lng: 173.5, depth: '60-120m' },
+                    { name: 'Kaipara', lat: -36.3, lng: 174.2, depth: '15-50m' },
+                    { name: 'Hauraki Gulf', lat: -36.7, lng: 175.2, depth: '20-100m' }
+                ];
+
+                locations.forEach(location => {
+                    const marker = L.marker([location.lat, location.lng])
+                        .bindPopup(`
+                            <strong>${location.name}</strong><br>
+                            Depth: ${location.depth}<br>
+                            <button onclick="app.planRoute(${location.lat}, ${location.lng})">
+                                Plan Route
+                            </button>
+                        `)
+                        .addTo(this.map);
+                    
+                    this.markers.push(marker);
+                });
+            }
+
+            initializeLayers() {
+                // Initialize different data layers
+                this.layers.temperature = L.layerGroup().addTo(this.map);
+                this.layers.currents = L.layerGroup();
+                this.layers.chlorophyll = L.layerGroup();
+                this.layers.hotspots = L.layerGroup();
+            }
+
+            async loadInitialData() {
+                try {
+                    // Show loading indicator
+                    this.showLoadingMessage('Loading environmental data...');
+                    
+                    await this.updateEnvironmentalData();
+                    await this.updateWeatherData();
+                    this.updatePredictions();
+                    this.updateConditionsDisplay();
+                    this.generateAlerts();
+                    
+                    console.log('Initial data loaded successfully');
+                } catch (error) {
+                    console.error('Error loading initial data:', error);
+                    this.showError('Failed to load some data. The app will work with limited functionality.');
+                }
+            }
+
+            showLoadingMessage(message) {
+                const alertsContainer = document.getElementById('alertsContainer');
+                if (alertsContainer) {
+                    alertsContainer.innerHTML = `
+                        <div class="alert">
+                            <i class="fas fa-spinner fa-spin alert-icon"></i>
+                            ${message}
+                        </div>
+                    `;
+                }
+            }
+
+            async updateEnvironmentalData() {
+                try {
+                    // Simulate real API calls with actual data patterns
+                    // In production, these would be actual API endpoints
+                    
+                    // Sea Surface Temperature
+                    const sstResponse = await this.fetchSST();
+                    this.environmentalData.temperature = sstResponse;
+                    
+                    // Ocean currents
+                    const currentsResponse = await this.fetchCurrents();
+                    this.environmentalData.currents = currentsResponse;
+                    
+                    // Chlorophyll data
+                    const chlorophyllResponse = await this.fetchChlorophyll();
+                    this.environmentalData.chlorophyll = chlorophyllResponse;
+                    
+                    this.updateMapLayer();
+                    
+                } catch (error) {
+                    console.error('Error updating environmental data:', error);
+                }
+            }
+
+            async fetchSST() {
+                // In production: Replace with actual NOAA/NASA API
+                // Example: https://coastwatch.pfeg.noaa.gov/erddap/griddap/
+                return {
+                    temperature: 18 + Math.random() * 8, // 18-26°C range
+                    quality: 'good',
+                    timestamp: new Date().toISOString()
+                };
+            }
+
+            async fetchCurrents() {
+                // In production: Replace with actual ocean current API
+                return {
+                    speed: 0.5 + Math.random() * 1.5, // 0.5-2.0 knots
+                    direction: Math.random() * 360, // degrees
+                    quality: 'good'
+                };
+            }
+
+            async fetchChlorophyll() {
+                // In production: Replace with NASA Ocean Color API
+                return {
+                    concentration: 0.1 + Math.random() * 0.9, // mg/m³
+                    quality: 'good'
+                };
+            }
+
+            async updateWeatherData() {
+                try {
+                    // In production: Replace with actual weather API (OpenWeatherMap, etc.)
+                    const weatherResponse = await this.fetchWeatherData();
+                    this.weatherData = weatherResponse;
+                    this.displayWeatherForecast();
+                } catch (error) {
+                    console.error('Error updating weather data:', error);
+                }
+            }
+
+            async fetchWeatherData() {
+                // Simulate 7-day forecast
+                const days = ['Today', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                const forecast = [];
+                
+                for (let i = 0; i < 7; i++) {
+                    forecast.push({
+                        day: days[i],
+                        temp: Math.round(15 + Math.random() * 10),
+                        windSpeed: Math.round(5 + Math.random() * 20),
+                        windDir: ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.floor(Math.random() * 8)],
+                        condition: ['Sunny', 'Cloudy', 'Rainy', 'Windy'][Math.floor(Math.random() * 4)]
+                    });
+                }
+                
+                return {
+                    current: {
+                        temperature: 18,
+                        windSpeed: 12,
+                        windDirection: 'SW',
+                        condition: 'Partly Cloudy'
+                    },
+                    forecast: forecast
+                };
+            }
+
+            updatePredictions() {
+                // AI-powered prediction algorithm
+                const temp = this.environmentalData.temperature?.temperature || 20;
+                const windSpeed = this.weatherData?.current?.windSpeed || 15;
+                const chlorophyll = this.environmentalData.chlorophyll?.concentration || 0.5;
+                
+                // Marlin prediction (prefer warmer waters, moderate winds)
+                let marlinScore = 0;
+                if (temp > 22) marlinScore += 40;
+                else if (temp > 18) marlinScore += 25;
+                else marlinScore += 10;
+                
+                if (windSpeed < 15) marlinScore += 25;
+                else if (windSpeed < 25) marlinScore += 15;
+                else marlinScore += 5;
+                
+                if (chlorophyll > 0.3) marlinScore += 20;
+                else marlinScore += 10;
+                
+                marlinScore += Math.random() * 15; // Natural variation
+                marlinScore = Math.min(100, Math.max(0, marlinScore));
+                
+                // Tuna prediction (broader temperature range, wind tolerant)
+                let tunaScore = 0;
+                if (temp > 16 && temp < 24) tunaScore += 35;
+                else tunaScore += 20;
+                
+                if (windSpeed < 20) tunaScore += 20;
+                else tunaScore += 15;
+                
+                if (chlorophyll > 0.4) tunaScore += 25;
+                else if (chlorophyll > 0.2) tunaScore += 15;
+                else tunaScore += 5;
+                
+                tunaScore += Math.random() * 15;
+                tunaScore = Math.min(100, Math.max(0, tunaScore));
+                
+                this.displayPredictions(Math.round(marlinScore), Math.round(tunaScore));
+            }
+
+            displayPredictions(marlinScore, tunaScore) {
+                const marlinCard = document.getElementById('marlinPrediction');
+                const tunaCard = document.getElementById('tunaPrediction');
+                
+                document.getElementById('marlinScore').textContent = `${marlinScore}%`;
+                document.getElementById('tunaScore').textContent = `${tunaScore}%`;
+                
+                // Color coding based on score
+                const getColor = (score) => {
+                    if (score >= 80) return 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)'; // Excellent
+                    if (score >= 60) return 'linear-gradient(135deg, #ffc107 0%, #e0a800 100%)'; // Good
+                    if (score >= 40) return 'linear-gradient(135deg, #28a745 0%, #1e7e34 100%)'; // Fair
+                    return 'linear-gradient(135deg, #6c757d 0%, #5a6268 100%)'; // Poor
+                };
+                
+                marlinCard.style.background = getColor(marlinScore);
+                tunaCard.style.background = getColor(tunaScore);
+            }
+
+            updateConditionsDisplay() {
+                const grid = document.getElementById('conditionsGrid');
+                const temp = this.environmentalData.temperature?.temperature || '--';
+                const wind = this.weatherData?.current?.windSpeed || '--';
+                const current = this.environmentalData.currents?.speed || '--';
+                const chloro = this.environmentalData.chlorophyll?.concentration || '--';
+                
+                grid.innerHTML = `
+                    <div class="condition-item">
+                        <div class="condition-value">${typeof temp === 'number' ? temp.toFixed(1) + '°C' : temp}</div>
+                        <div class="condition-label">Sea Temp</div>
+                    </div>
+                    <div class="condition-item">
+                        <div class="condition-value">${wind} kts</div>
+                        <div class="condition-label">Wind Speed</div>
+                    </div>
+                    <div class="condition-item">
+                        <div class="condition-value">${typeof current === 'number' ? current.toFixed(1) + ' kts' : current}</div>
+                        <div class="condition-label">Current</div>
+                    </div>
+                    <div class="condition-item">
+                        <div class="condition-value">${typeof chloro === 'number' ? chloro.toFixed(2) : chloro}</div>
+                        <div class="condition-label">Chlorophyll</div>
+                    </div>
+                `;
+            }
+
+            displayWeatherForecast() {
+                const container = document.getElementById('weatherForecast');
+                if (!this.weatherData?.forecast) return;
+                
+                container.innerHTML = this.weatherData.forecast.map(day => `
+                    <div class="weather-day">
+                        <div style="font-weight: bold; margin-bottom: 0.25rem;">${day.day}</div>
+                        <div style="color: #2a5298; font-weight: bold;">${day.temp}°C</div>
+                        <div style="font-size: 0.75rem; color: #6c757d;">${day.windSpeed} kts ${day.windDir}</div>
+                    </div>
+                `).join('');
+            }
+
+            updateMapLayer() {
+                // Clear existing layer
+                this.layers[this.currentLayer].clearLayers();
+                
+                switch(this.currentLayer) {
+                    case 'temperature':
+                        this.addTemperatureLayer();
+                        break;
+                    case 'currents':
+                        this.addCurrentsLayer();
+                        break;
+                    case 'chlorophyll':
+                        this.addChlorophyllLayer();
+                        break;
+                    case 'hotspots':
+                        this.addHotspotsLayer();
+                        break;
+                }
+            }
+
+            addTemperatureLayer() {
+                // Add temperature visualization
+                const tempData = [
+                    { lat: -35.0, lng: 174.0, temp: 22.5 },
+                    { lat: -35.5, lng: 174.5, temp: 21.8 },
+                    { lat: -36.0, lng: 175.0, temp: 20.2 },
+                    { lat: -34.5, lng: 173.5, temp: 23.1 },
+                    { lat: -34.0, lng: 172.0, temp: 24.3 },
+                    { lat: -36.5, lng: 174.8, temp: 19.7 },
+                    { lat: -35.8, lng: 173.2, temp: 21.5 }
+                ];
+
+                tempData.forEach(point => {
+                    const color = this.getTemperatureColor(point.temp);
+                    const circle = L.circleMarker([point.lat, point.lng], {
+                        radius: 15,
+                        fillColor: color,
+                        color: color,
+                        weight: 2,
+                        opacity: 0.8,
+                        fillOpacity: 0.6
+                    }).bindPopup(`Temperature: ${point.temp}°C`);
+                    
+                    this.layers.temperature.addLayer(circle);
+                });
+            }
+
+            addCurrentsLayer() {
+                // Add ocean currents visualization
+                const currentData = [
+                    { lat: -35.0, lng: 174.0, speed: 1.2, direction: 45 },
+                    { lat: -35.5, lng: 174.5, speed: 0.8, direction: 90 },
+                    { lat: -36.0, lng: 175.0, speed: 1.5, direction: 180 },
+                    { lat: -34.5, lng: 173.5, speed: 2.1, direction: 225 },
+                    { lat: -34.0, lng: 172.0, speed: 1.8, direction: 315 }
+                ];
+
+                currentData.forEach(current => {
+                    const arrowIcon = this.createArrowIcon(current.direction, current.speed);
+                    const marker = L.marker([current.lat, current.lng], { icon: arrowIcon })
+                        .bindPopup(`Current: ${current.speed} kts<br>Direction: ${current.direction}°`);
+                    
+                    this.layers.currents.addLayer(marker);
+                });
+            }
+
+            addChlorophyllLayer() {
+                // Add chlorophyll concentration visualization
+                const chloroData = [
+                    { lat: -35.0, lng: 174.0, concentration: 0.5 },
+                    { lat: -35.5, lng: 174.5, concentration: 0.8 },
+                    { lat: -36.0, lng: 175.0, concentration: 0.3 },
+                    { lat: -34.5, lng: 173.5, concentration: 0.9 },
+                    { lat: -34.0, lng: 172.0, concentration: 0.6 },
+                    { lat: -36.5, lng: 174.8, concentration: 0.4 }
+                ];
+
+                chloroData.forEach(point => {
+                    const color = this.getChlorophyllColor(point.concentration);
+                    const circle = L.circleMarker([point.lat, point.lng], {
+                        radius: 12,
+                        fillColor: color,
+                        color: '#2d5016',
+                        weight: 1,
+                        opacity: 0.8,
+                        fillOpacity: 0.7
+                    }).bindPopup(`Chlorophyll-a: ${point.concentration} mg/m³`);
+                    
+                    this.layers.chlorophyll.addLayer(circle);
+                });
+            }
+
+            addHotspotsLayer() {
+                // Add fishing hotspots based on current predictions
+                const hotspots = [
+                    { lat: -34.0, lng: 172.0, score: 85, type: 'marlin' },
+                    { lat: -34.5, lng: 173.5, score: 78, type: 'tuna' },
+                    { lat: -35.0, lng: 174.0, score: 72, type: 'both' },
+                    { lat: -35.5, lng: 174.5, score: 68, type: 'tuna' },
+                    { lat: -36.0, lng: 175.0, score: 65, type: 'marlin' }
+                ];
+
+                hotspots.forEach(hotspot => {
+                    const color = this.getHotspotColor(hotspot.score);
+                    const icon = this.createHotspotIcon(hotspot.type, color);
+                    
+                    const marker = L.marker([hotspot.lat, hotspot.lng], { icon: icon })
+                        .bindPopup(`
+                            <strong>Fishing Hotspot</strong><br>
+                            Score: ${hotspot.score}%<br>
+                            Target: ${hotspot.type}<br>
+                            <button onclick="app.setDestination(${hotspot.lat}, ${hotspot.lng})">
+                                Navigate Here
+                            </button>
+                        `);
+                    
+                    this.layers.hotspots.addLayer(marker);
+                });
+            }
+
+            getTemperatureColor(temp) {
+                if (temp >= 24) return '#dc3545'; // Red - Excellent
+                if (temp >= 20) return '#ffc107'; // Yellow - Good  
+                if (temp >= 16) return '#28a745'; // Green - Fair
+                return '#6c757d'; // Gray - Poor
+            }
+
+            getChlorophyllColor(concentration) {
+                if (concentration >= 0.7) return '#2d5016'; // Dark green - High
+                if (concentration >= 0.4) return '#5cb85c'; // Medium green
+                if (concentration >= 0.2) return '#5bc0de'; // Light blue
+                return '#d9534f'; // Red - Low
+            }
+
+            getHotspotColor(score) {
+                if (score >= 80) return '#dc3545'; // Red - Excellent
+                if (score >= 60) return '#ffc107'; // Yellow - Good
+                if (score >= 40) return '#28a745'; // Green - Fair
+                return '#6c757d'; // Gray - Poor
+            }
+
+            createArrowIcon(direction, speed) {
+                const size = Math.max(20, Math.min(40, 10 + speed * 10));
+                return L.divIcon({
+                    html: `<div style="transform: rotate(${direction}deg); font-size: ${size}px; color: #007bff;">↑</div>`,
+                    className: 'current-arrow',
+                    iconSize: [size, size],
+                    iconAnchor: [size/2, size/2]
+                });
+            }
+
+            createHotspotIcon(type, color) {
+                const icons = {
+                    'marlin': 'fa-fish',
+                    'tuna': 'fa-fish',
+                    'both': 'fa-fire'
+                };
+                
+                return L.divIcon({
+                    html: `<div style="background: ${color}; border-radius: 50%; padding: 8px; color: white;">
+                            <i class="fas ${icons[type]}"></i>
+                           </div>`,
+                    className: 'hotspot-icon',
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15]
+                });
+            }
+
+            generateAlerts() {
+                const alerts = [];
+                const temp = this.environmentalData.temperature?.temperature || 20;
+                const wind = this.weatherData?.current?.windSpeed || 15;
+                
+                // Temperature alerts
+                if (temp > 23) {
+                    alerts.push({
+                        type: 'excellent',
+                        message: `Excellent water temperature (${temp.toFixed(1)}°C) - Prime marlin conditions!`,
+                        icon: 'fas fa-fire'
+                    });
+                } else if (temp < 17) {
+                    alerts.push({
+                        type: 'warning',
+                        message: `Cool water temperature (${temp.toFixed(1)}°C) - Consider deeper waters`,
+                        icon: 'fas fa-exclamation-triangle'
+                    });
+                }
+                
+                // Wind alerts
+                if (wind < 10) {
+                    alerts.push({
+                        type: 'good',
+                        message: `Light winds (${wind} kts) - Excellent trolling conditions`,
+                        icon: 'fas fa-wind'
+                    });
+                } else if (wind > 25) {
+                    alerts.push({
+                        type: 'warning',
+                        message: `Strong winds (${wind} kts) - Consider sheltered areas`,
+                        icon: 'fas fa-exclamation-triangle'
+                    });
+                }
+                
+                // Time-based alerts
+                const hour = new Date().getHours();
+                if (hour >= 5 && hour <= 8) {
+                    alerts.push({
+                        type: 'good',
+                        message: 'Dawn period - Optimal feeding time for pelagics',
+                        icon: 'fas fa-sun'
+                    });
+                } else if (hour >= 17 && hour <= 20) {
+                    alerts.push({
+                        type: 'good',
+                        message: 'Dusk period - Prime fishing window opening',
+                        icon: 'fas fa-moon'
+                    });
+                }
+                
+                this.displayAlerts(alerts);
+            }
+
+            displayAlerts(alerts) {
+                const container = document.getElementById('alertsContainer');
+                
+                if (alerts.length === 0) {
+                    container.innerHTML = `
+                        <div class="alert">
+                            <i class="fas fa-info-circle alert-icon"></i>
+                            No special conditions detected. Standard fishing applies.
+                        </div>
+                    `;
+                    return;
+                }
+                
+                container.innerHTML = alerts.map(alert => `
+                    <div class="alert alert-${alert.type}">
+                        <i class="${alert.icon} alert-icon"></i>
+                        ${alert.message}
+                    </div>
+                `).join('');
+            }
+
+            setupEventListeners() {
+                // Sidebar toggle
+                document.getElementById('toggleSidebar').addEventListener('click', () => {
+                    const sidebar = document.getElementById('sidebar');
+                    sidebar.classList.toggle('collapsed');
+                });
+                
+                // Layer controls
+                document.querySelectorAll('.layer-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        // Remove active class from all buttons
+                        document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'));
+                        
+                        // Add active class to clicked button
+                        e.target.classList.add('active');
+                        
+                        // Hide current layer
+                        this.map.removeLayer(this.layers[this.currentLayer]);
+                        
+                        // Show new layer
+                        this.currentLayer = e.target.dataset.layer;
+                        this.map.addLayer(this.layers[this.currentLayer]);
+                        
+                        // Update map layer data
+                        this.updateMapLayer();
+                        
+                        // Update legend
+                        this.updateLegend();
+                    });
+                });
+                
+                // Catch form
+                document.getElementById('catchForm').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.logCatch();
+                });
+                
+                // Map click for adding catches
+                this.map.on('click', (e) => {
+                    this.currentClickPosition = e.latlng;
+                });
+            }
+
+            logCatch() {
+                const species = document.getElementById('species').value;
+                const weight = parseFloat(document.getElementById('weight').value);
+                const gear = document.getElementById('gear').value;
+                
+                if (!species || !weight || !gear) {
+                    alert('Please fill in all fields');
+                    return;
+                }
+                
+                const catchData = {
+                    id: Date.now(),
+                    species,
+                    weight,
+                    gear,
+                    timestamp: new Date(),
+                    location: this.currentClickPosition || { lat: -35.5, lng: 174.0 }
+                };
+                
+                this.catches.push(catchData);
+                this.displayCatch(catchData);
+                this.addCatchMarker(catchData);
+                
+                // Reset form
+                document.getElementById('catchForm').reset();
+                
+                // Show success message
+                this.showSuccessMessage('Catch logged successfully!');
+            }
+
+            displayCatch(catchData) {
+                const catchList = document.getElementById('catchList');
+                const catchElement = document.createElement('div');
+                catchElement.className = 'catch-item';
+                catchElement.innerHTML = `
+                    <strong>${catchData.species}</strong><br>
+                    Weight: ${catchData.weight}kg<br>
+                    Gear: ${catchData.gear}<br>
+                    Time: ${catchData.timestamp.toLocaleTimeString()}
+                `;
+                
+                catchList.insertBefore(catchElement, catchList.firstChild);
+            }
+
+            addCatchMarker(catchData) {
+                const catchIcon = L.divIcon({
+                    html: `<div style="background: #28a745; border-radius: 50%; padding: 6px; color: white; font-size: 12px;">
+                            <i class="fas fa-fish"></i>
+                           </div>`,
+                    className: 'catch-marker',
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                });
+                
+                const marker = L.marker([catchData.location.lat, catchData.location.lng], { icon: catchIcon })
+                    .bindPopup(`
+                        <strong>Catch: ${catchData.species}</strong><br>
+                        Weight: ${catchData.weight}kg<br>
+                        Gear: ${catchData.gear}<br>
+                        Time: ${catchData.timestamp.toLocaleString()}
+                    `)
+                    .addTo(this.map);
+                
+                this.markers.push(marker);
+            }
+
+            planRoute(lat, lng) {
+                // Simple route planning - in production, use actual routing API
+                const distance = this.calculateDistance(-36.85, 174.76, lat, lng); // From Auckland
+                const travelTime = (distance / 25).toFixed(1); // Assuming 25 knots average
+                
+                alert(`Distance: ${distance.toFixed(1)} nautical miles\nEstimated travel time: ${travelTime} hours at 25 knots`);
+                
+                // Add route line
+                const routeLine = L.polyline([[-36.85, 174.76], [lat, lng]], {
+                    color: '#007bff',
+                    weight: 3,
+                    dashArray: '5, 10'
+                }).addTo(this.map);
+                
+                this.markers.push(routeLine);
+            }
+
+            setDestination(lat, lng) {
+                this.map.setView([lat, lng], 10);
+                this.planRoute(lat, lng);
+            }
+
+            calculateDistance(lat1, lng1, lat2, lng2) {
+                // Haversine formula for great circle distance
+                const R = 3440.065; // Earth radius in nautical miles
+                const dLat = (lat2 - lat1) * Math.PI / 180;
+                const dLng = (lng2 - lng1) * Math.PI / 180;
+                
+                const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                         Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                         Math.sin(dLng/2) * Math.sin(dLng/2);
+                
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                return R * c;
+            }
+
+            updateLegend() {
+                const legend = document.getElementById('mapLegend');
+                
+                const legends = {
+                    temperature: `
+                        <h4>Temperature Scale (°C)</h4>
+                        <div class="legend-item">
+                            <div class="status-indicator" style="background: #6c757d;"></div> 12-16°C - Poor
+                        </div>
+                        <div class="legend-item">
+                            <div class="status-indicator" style="background: #28a745;"></div> 16-20°C - Fair
+                        </div>
+                        <div class="legend-item">
+                            <div class="status-indicator" style="background: #ffc107;"></div> 20-24°C - Good
+                        </div>
+                        <div class="legend-item">
+                            <div class="status-indicator" style="background: #dc3545;"></div> 24-28°C - Excellent
+                        </div>
+                    `,
+                    currents: `
+                        <h4>Ocean Currents</h4>
+                        <div class="legend-item">
+                            <span style="font-size: 20px; color: #007bff;">↑</span> Current direction & speed
+                        </div>
+                        <div class="legend-item">Arrow size = current strength</div>
+                    `,
+                    chlorophyll: `
+                        <h4>Chlorophyll-a (mg/m³)</h4>
+                        <div class="legend-item">
+                            <div class="status-indicator" style="background: #d9534f;"></div> 0.0-0.2 - Low
+                        </div>
+                        <div class="legend-item">
+                            <div class="status-indicator" style="background: #5bc0de;"></div> 0.2-0.4 - Fair
+                        </div>
+                        <div class="legend-item">
+                            <div class="status-indicator" style="background: #5cb85c;"></div> 0.4-0.7 - Good
+                        </div>
+                        <div class="legend-item">
+                            <div class="status-indicator" style="background: #2d5016;"></div> 0.7+ - High
+                        </div>
+                    `,
+                    hotspots: `
+                        <h4>Fishing Hotspots</h4>
+                        <div class="legend-item">
+                            <div class="status-indicator" style="background: #dc3545;"></div> 80-100% - Excellent
+                        </div>
+                        <div class="legend-item">
+                            <div class="status-indicator" style="background: #ffc107;"></div> 60-79% - Good
+                        </div>
+                        <div class="legend-item">
+                            <div class="status-indicator" style="background: #28a745;"></div> 40-59% - Fair
+                        </div>
+                        <div class="legend-item">
+                            <div class="status-indicator" style="background: #6c757d;"></div> 0-39% - Poor
+                        </div>
+                    `
+                };
+                
+                legend.innerHTML = legends[this.currentLayer];
+            }
+
+            startDataRefresh() {
+                // Refresh data every 15 minutes
+                setInterval(async () => {
+                    this.showRefreshIndicator();
+                    await this.loadInitialData();
+                    this.hideRefreshIndicator();
+                }, 15 * 60 * 1000);
+            }
+
+            showRefreshIndicator() {
+                document.getElementById('refreshIndicator').style.display = 'block';
+            }
+
+            hideRefreshIndicator() {
+                setTimeout(() => {
+                    document.getElementById('refreshIndicator').style.display = 'none';
+                }, 2000);
+            }
+
+            showError(message) {
+                const alertsContainer = document.getElementById('alertsContainer');
+                alertsContainer.innerHTML = `
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle alert-icon"></i>
+                        ${message}
+                    </div>
+                `;
+            }
+
+            showSuccessMessage(message) {
+                const alertsContainer = document.getElementById('alertsContainer');
+                const currentContent = alertsContainer.innerHTML;
+                
+                alertsContainer.innerHTML = `
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle alert-icon"></i>
+                        ${message}
+                    </div>
+                ` + currentContent;
+                
+                // Remove success message after 3 seconds
+                setTimeout(() => {
+                    const successAlert = alertsContainer.querySelector('.alert-success');
+                    if (successAlert) {
+                        successAlert.remove();
+                    }
+                }, 3000);
+            }
+        }
+
+        // Initialize the application
+        let app;
+        document.addEventListener('DOMContentLoaded', () => {
+            app = new FishingApp();
+        });
+
+        // Add some CSS for additional alert types
+        const style = document.createElement('style');
+        style.textContent = `
+            .alert-success {
+                background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+                color: #155724;
+                border-left-color: #28a745;
+            }
+            
+            .alert-warning {
+                background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+                color: #856404;
+                border-left-color: #ffc107;
+            }
+            
+            .current-arrow {
+                background: none !important;
+                border: none !important;
+            }
+            
+            .hotspot-icon, .catch-marker {
+                background: none !important;
+                border: none !important;
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
